@@ -1,0 +1,113 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{80aae082-1538-42b8-bc6b-0b0041d8049c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{f5ee51ef-4fa5-446f-8c43-91f1316e4d15}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{597c11aa-bd42-4bcc-87cc-971c1a70f3db}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\tinyxml2">
+      <UniqueIdentifier>{b4e6c12c-2fe8-460d-8081-9ae722385da4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\tinyxml2">
+      <UniqueIdentifier>{fd5abf37-eb8f-416b-9481-45f346267472}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\sqlite">
+      <UniqueIdentifier>{91bcebc2-fd28-4ec0-97df-ba21d75285f4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\sqlite">
+      <UniqueIdentifier>{3d048d68-2ca2-434d-a632-b34b7eddb7a8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\utf8cpp">
+      <UniqueIdentifier>{795a37d4-44ac-4e5b-a327-33509f987cdf}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\src\foo_uie_podcast\tinyxml2\tinyxml2.h">
+      <Filter>Header Files\tinyxml2</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\foo_uie_podcast\database.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\foo_uie_podcast\dlg_inputbox.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\foo_uie_podcast\dlg_preferences.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\foo_uie_podcast\foo_uie_podcast.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\foo_uie_podcast\panels.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\foo_uie_podcast\resource.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\foo_uie_podcast\stdafx.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\foo_uie_podcast\sqlite\sqlite3.h">
+      <Filter>Header Files\sqlite</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\foo_uie_podcast\mdecl.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\foo_uie_podcast\uft8cpp\utf8.h">
+      <Filter>Header Files\utf8cpp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\foo_uie_podcast\uft8cpp\utf8\checked.h">
+      <Filter>Header Files\utf8cpp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\foo_uie_podcast\uft8cpp\utf8\core.h">
+      <Filter>Header Files\utf8cpp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\foo_uie_podcast\uft8cpp\utf8\unchecked.h">
+      <Filter>Header Files\utf8cpp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\foo_uie_podcast\dlg_editfeed.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\src\foo_uie_podcast\tinyxml2\tinyxml2.cpp">
+      <Filter>Source Files\tinyxml2</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\foo_uie_podcast\database.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\foo_uie_podcast\dlg_inputbox.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\foo_uie_podcast\dlg_preferences.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\foo_uie_podcast\foo_uie_podcast.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\foo_uie_podcast\panels.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\foo_uie_podcast\stdafx.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\foo_uie_podcast\sqlite\sqlite3.c">
+      <Filter>Source Files\sqlite</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\foo_uie_podcast\mdecl.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\foo_uie_podcast\dlg_editfeed.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="..\..\..\src\foo_uie_podcast\foo_uie_podcast.rc">
+      <Filter>Resource Files</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+</Project>
