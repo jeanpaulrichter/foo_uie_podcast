@@ -24,7 +24,7 @@ distribution.
 #include "tinyxml2.h"
 
 #include <new>		// yes, this one new style header, is in the Android SDK.
-#if defined(ANDROID_NDK) || defined(__QNXNTO__)
+#if defined(ANDROID_NDK) || defined(__BORLANDC__) || defined(__QNXNTO__)
 #   include <stddef.h>
 #   include <stdarg.h>
 #else
@@ -41,7 +41,7 @@ distribution.
 	   const char *format [,
 		  argument] ...
 	);*/
-	inline int TIXML_SNPRINTF( char* buffer, size_t size, const char* format, ... )
+	static inline int TIXML_SNPRINTF( char* buffer, size_t size, const char* format, ... )
 	{
 		va_list va;
 		va_start( va, format );
@@ -50,7 +50,7 @@ distribution.
 		return result;
 	}
 
-	inline int TIXML_VSNPRINTF( char* buffer, size_t size, const char* format, va_list va )
+	static inline int TIXML_VSNPRINTF( char* buffer, size_t size, const char* format, va_list va )
 	{
 		int result = vsnprintf_s( buffer, size, _TRUNCATE, format, va );
 		return result;
@@ -68,7 +68,7 @@ distribution.
 		#define TIXML_VSCPRINTF   _vscprintf // VS2003's C runtime has this, but VC6 C runtime or WinCE SDK doesn't have.
 	#else
 		// Microsoft Visual Studio 2003 and earlier or WinCE.
-		inline int TIXML_VSCPRINTF( const char* format, va_list va )
+		static inline int TIXML_VSCPRINTF( const char* format, va_list va )
 		{
 			int len = 512;
 			for (;;) {
@@ -91,7 +91,7 @@ distribution.
 	//#warning( "Using sn* functions." )
 	#define TIXML_SNPRINTF	snprintf
 	#define TIXML_VSNPRINTF	vsnprintf
-	inline int TIXML_VSCPRINTF( const char* format, va_list va )
+	static inline int TIXML_VSCPRINTF( const char* format, va_list va )
 	{
 		int len = vsnprintf( 0, 0, format, va );
 		TIXMLASSERT( len >= 0 );
@@ -149,6 +149,7 @@ void StrPair::TransferTo( StrPair* other )
     // This in effect implements the assignment operator by "moving"
     // ownership (as in auto_ptr).
 
+    TIXMLASSERT( other != 0 );
     TIXMLASSERT( other->_flags == 0 );
     TIXMLASSERT( other->_start == 0 );
     TIXMLASSERT( other->_end == 0 );
@@ -177,6 +178,7 @@ void StrPair::Reset()
 
 void StrPair::SetStr( const char* str, int flags )
 {
+    TIXMLASSERT( str );
     Reset();
     size_t len = strlen( str );
     TIXMLASSERT( _start == 0 );
@@ -470,7 +472,7 @@ const char* XMLUtil::GetCharacterRef( const char* p, char* value, int* length )
                 else {
                     return 0;
                 }
-                TIXMLASSERT( digit >= 0 && digit < 16);
+                TIXMLASSERT( digit < 16 );
                 TIXMLASSERT( digit == 0 || mult <= UINT_MAX / digit );
                 const unsigned int digitScaled = mult * digit;
                 TIXMLASSERT( ucs <= ULONG_MAX - digitScaled );
@@ -500,7 +502,7 @@ const char* XMLUtil::GetCharacterRef( const char* p, char* value, int* length )
             while ( *q != '#' ) {
                 if ( *q >= '0' && *q <= '9' ) {
                     const unsigned int digit = *q - '0';
-                    TIXMLASSERT( digit >= 0 && digit < 10);
+                    TIXMLASSERT( digit < 10 );
                     TIXMLASSERT( digit == 0 || mult <= UINT_MAX / digit );
                     const unsigned int digitScaled = mult * digit;
                     TIXMLASSERT( ucs <= ULONG_MAX - digitScaled );
@@ -555,6 +557,13 @@ void XMLUtil::ToStr( double v, char* buffer, int bufferSize )
 }
 
 
+void XMLUtil::ToStr(int64_t v, char* buffer, int bufferSize)
+{
+	// horrible syntax trick to make the compiler happy about %lld
+	TIXML_SNPRINTF(buffer, bufferSize, "%lld", (long long)v);
+}
+
+
 bool XMLUtil::ToInt( const char* str, int* value )
 {
     if ( TIXML_SSCANF( str, "%d", value ) == 1 ) {
@@ -598,12 +607,24 @@ bool XMLUtil::ToFloat( const char* str, float* value )
     return false;
 }
 
+
 bool XMLUtil::ToDouble( const char* str, double* value )
 {
     if ( TIXML_SSCANF( str, "%lf", value ) == 1 ) {
         return true;
     }
     return false;
+}
+
+
+bool XMLUtil::ToInt64(const char* str, int64_t* value)
+{
+	long long v = 0;	// horrible syntax trick to make the compiler happy about %lld
+	if (TIXML_SSCANF(str, "%lld", &v) == 1) {
+		*value = (int64_t)v;
+		return true;
+	}
+	return false;
 }
 
 
@@ -702,6 +723,7 @@ XMLNode::XMLNode( XMLDocument* doc ) :
     _parent( 0 ),
     _firstChild( 0 ), _lastChild( 0 ),
     _prev( 0 ), _next( 0 ),
+	_userData( 0 ),
     _memPool( 0 )
 {
 }
@@ -775,6 +797,7 @@ void XMLNode::DeleteChild( XMLNode* node )
     TIXMLASSERT( node );
     TIXMLASSERT( node->_document == _document );
     TIXMLASSERT( node->_parent == this );
+    Unlink( node );
     DeleteNode( node );
 }
 
@@ -964,15 +987,12 @@ char* XMLNode::ParseDeep( char* p, StrPair* parentEnd )
 
         XMLDeclaration* decl = node->ToDeclaration();
         if ( decl ) {
+                // A declaration can only be the first child of a document.
+                // Set error, if document already has children.
                 if ( !_document->NoChildren() ) {
-					// edit: ignore additional declarations (xml-stylesheet)
-					continue;
-
-					// A declaration can only be the first child of a document.
-					// Set error, if document already has children.
-                    _document->SetError( XML_ERROR_PARSING_DECLARATION, decl->Value(), 0);
-                    DeleteNode( decl );
-                    break;
+                        _document->SetError( XML_ERROR_PARSING_DECLARATION, decl->Value(), 0);
+                        DeleteNode( decl );
+                        break;
                 }
         }
 
@@ -1287,7 +1307,7 @@ void XMLAttribute::SetName( const char* n )
 XMLError XMLAttribute::QueryIntValue( int* value ) const
 {
     if ( XMLUtil::ToInt( Value(), value )) {
-        return XML_NO_ERROR;
+        return XML_SUCCESS;
     }
     return XML_WRONG_ATTRIBUTE_TYPE;
 }
@@ -1296,16 +1316,25 @@ XMLError XMLAttribute::QueryIntValue( int* value ) const
 XMLError XMLAttribute::QueryUnsignedValue( unsigned int* value ) const
 {
     if ( XMLUtil::ToUnsigned( Value(), value )) {
-        return XML_NO_ERROR;
+        return XML_SUCCESS;
     }
     return XML_WRONG_ATTRIBUTE_TYPE;
+}
+
+
+XMLError XMLAttribute::QueryInt64Value(int64_t* value) const
+{
+	if (XMLUtil::ToInt64(Value(), value)) {
+		return XML_SUCCESS;
+	}
+	return XML_WRONG_ATTRIBUTE_TYPE;
 }
 
 
 XMLError XMLAttribute::QueryBoolValue( bool* value ) const
 {
     if ( XMLUtil::ToBool( Value(), value )) {
-        return XML_NO_ERROR;
+        return XML_SUCCESS;
     }
     return XML_WRONG_ATTRIBUTE_TYPE;
 }
@@ -1314,7 +1343,7 @@ XMLError XMLAttribute::QueryBoolValue( bool* value ) const
 XMLError XMLAttribute::QueryFloatValue( float* value ) const
 {
     if ( XMLUtil::ToFloat( Value(), value )) {
-        return XML_NO_ERROR;
+        return XML_SUCCESS;
     }
     return XML_WRONG_ATTRIBUTE_TYPE;
 }
@@ -1323,7 +1352,7 @@ XMLError XMLAttribute::QueryFloatValue( float* value ) const
 XMLError XMLAttribute::QueryDoubleValue( double* value ) const
 {
     if ( XMLUtil::ToDouble( Value(), value )) {
-        return XML_NO_ERROR;
+        return XML_SUCCESS;
     }
     return XML_WRONG_ATTRIBUTE_TYPE;
 }
@@ -1349,6 +1378,15 @@ void XMLAttribute::SetAttribute( unsigned v )
     XMLUtil::ToStr( v, buf, BUF_SIZE );
     _value.SetStr( buf );
 }
+
+
+void XMLAttribute::SetAttribute(int64_t v)
+{
+	char buf[BUF_SIZE];
+	XMLUtil::ToStr(v, buf, BUF_SIZE);
+	_value.SetStr(buf);
+}
+
 
 
 void XMLAttribute::SetAttribute( bool v )
@@ -1451,7 +1489,15 @@ void XMLElement::SetText( unsigned v )
 }
 
 
-void XMLElement::SetText( bool v ) 
+void XMLElement::SetText(int64_t v)
+{
+	char buf[BUF_SIZE];
+	XMLUtil::ToStr(v, buf, BUF_SIZE);
+	SetText(buf);
+}
+
+
+void XMLElement::SetText( bool v )
 {
     char buf[BUF_SIZE];
     XMLUtil::ToStr( v, buf, BUF_SIZE );
@@ -1498,6 +1544,19 @@ XMLError XMLElement::QueryUnsignedText( unsigned* uval ) const
         return XML_CAN_NOT_CONVERT_TEXT;
     }
     return XML_NO_TEXT_NODE;
+}
+
+
+XMLError XMLElement::QueryInt64Text(int64_t* ival) const
+{
+	if (FirstChild() && FirstChild()->ToText()) {
+		const char* t = FirstChild()->Value();
+		if (XMLUtil::ToInt64(t, ival)) {
+			return XML_SUCCESS;
+		}
+		return XML_CAN_NOT_CONVERT_TEXT;
+	}
+	return XML_NO_TEXT_NODE;
 }
 
 
@@ -1772,7 +1831,7 @@ XMLDocument::XMLDocument( bool processEntities, Whitespace whitespace ) :
     XMLNode( 0 ),
     _writeBOM( false ),
     _processEntities( processEntities ),
-    _errorID( XML_NO_ERROR ),
+    _errorID(XML_SUCCESS),
     _whitespace( whitespace ),
     _errorStr1( 0 ),
     _errorStr2( 0 ),
@@ -1796,7 +1855,7 @@ void XMLDocument::Clear()
 #ifdef DEBUG
     const bool hadError = Error();
 #endif
-    _errorID = XML_NO_ERROR;
+    _errorID = XML_SUCCESS;
     _errorStr1 = 0;
     _errorStr2 = 0;
 
@@ -1917,6 +1976,28 @@ XMLError XMLDocument::LoadFile( const char* filename )
     return _errorID;
 }
 
+// This is likely overengineered template art to have a check that unsigned long value incremented
+// by one still fits into size_t. If size_t type is larger than unsigned long type
+// (x86_64-w64-mingw32 target) then the check is redundant and gcc and clang emit
+// -Wtype-limits warning. This piece makes the compiler select code with a check when a check
+// is useful and code with no check when a check is redundant depending on how size_t and unsigned long
+// types sizes relate to each other.
+template
+<bool = (sizeof(unsigned long) >= sizeof(size_t))>
+struct LongFitsIntoSizeTMinusOne {
+    static bool Fits( unsigned long value )
+    {
+        return value < (size_t)-1;
+    }
+};
+
+template <>
+struct LongFitsIntoSizeTMinusOne<false> {
+    static bool Fits( unsigned long )
+    {
+        return true;
+    }
+};
 
 XMLError XMLDocument::LoadFile( FILE* fp )
 {
@@ -1935,8 +2016,9 @@ XMLError XMLDocument::LoadFile( FILE* fp )
         SetError( XML_ERROR_FILE_READ_ERROR, 0, 0 );
         return _errorID;
     }
+    TIXMLASSERT( filelength >= 0 );
 
-    if ( (unsigned long)filelength >= (size_t)-1 ) {
+    if ( !LongFitsIntoSizeTMinusOne<>::Fits( filelength ) ) {
         // Cannot handle files which won't fit in buffer together with null terminator
         SetError( XML_ERROR_FILE_READ_ERROR, 0, 0 );
         return _errorID;
@@ -1980,7 +2062,7 @@ XMLError XMLDocument::SaveFile( FILE* fp, bool compact )
 {
     // Clear any error from the last save, otherwise it will get reported
     // for *this* call.
-    SetError( XML_NO_ERROR, 0, 0 );
+	SetError(XML_SUCCESS, 0, 0);
     XMLPrinter stream( fp, compact );
     Print( &stream );
     return _errorID;
@@ -2243,6 +2325,14 @@ void XMLPrinter::PushAttribute( const char* name, unsigned v )
 }
 
 
+void XMLPrinter::PushAttribute(const char* name, int64_t v)
+{
+	char buf[BUF_SIZE];
+	XMLUtil::ToStr(v, buf, BUF_SIZE);
+	PushAttribute(name, buf);
+}
+
+
 void XMLPrinter::PushAttribute( const char* name, bool v )
 {
     char buf[BUF_SIZE];
@@ -2306,6 +2396,13 @@ void XMLPrinter::PushText( const char* text, bool cdata )
     else {
         PrintString( text, true );
     }
+}
+
+void XMLPrinter::PushText( int64_t value )
+{
+    char buf[BUF_SIZE];
+    XMLUtil::ToStr( value, buf, BUF_SIZE );
+    PushText( buf, false );
 }
 
 void XMLPrinter::PushText( int value )

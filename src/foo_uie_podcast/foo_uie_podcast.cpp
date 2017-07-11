@@ -426,6 +426,44 @@ void UIEPanelFeeds::onRClick(int index, int x, int y)
 		}
 	} break;
 
+	case ID_MENU_IMPORT_OPML:
+	{
+		IFileDialog *pfd = NULL;
+		DWORD dwFlags;
+
+		try {
+			if (!SUCCEEDED(CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pfd))))
+				throw std::exception();
+			if (!SUCCEEDED(pfd->GetOptions(&dwFlags)))
+				throw std::exception();
+			if (!SUCCEEDED(pfd->SetOptions(dwFlags | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST)))
+				throw std::exception();
+			if (!SUCCEEDED(pfd->Show(NULL)))
+				throw std::exception();
+
+			IShellItem *psiResult;
+			pfc::string8 path;
+
+			if (SUCCEEDED(pfd->GetResult(&psiResult)))
+			{
+				PWSTR pszFilePath = NULL;
+				if (SUCCEEDED(psiResult->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath)))
+				{
+					path = pfc::stringcvt::string_utf8_from_os(pszFilePath);
+
+					CoTaskMemFree(pszFilePath);
+				}
+				psiResult->Release();
+
+				database.ImportOPML(path.c_str());
+			}
+		}
+		catch (std::exception&) {
+			if (pfd)
+				pfd->Release();
+		}
+	} break;
+
 	case ID_MENU_FEED_DELETE:
 	{
 		TCHAR tmsg[100] = TEXT("Delete '");

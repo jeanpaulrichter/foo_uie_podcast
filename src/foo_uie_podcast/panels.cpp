@@ -357,10 +357,13 @@ LRESULT UIEListViewPanel::on_message(HWND wnd, UINT msg, WPARAM wp, LPARAM lp)
 			SetWindowLongPtr(m_hwnd_header, GWL_USERDATA, (LPARAM)(this));
 			m_headerproc = (WNDPROC)SetWindowLongPtr(m_hwnd_header, GWL_WNDPROC, (LPARAM)(header_proc));
 
+			
+			
+
 			// ----------- Setup columns
 			RECT rect = { 0, 0, 0, 0 };
 			LVCOLUMN data = {};
-			data.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_FMT;
+			data.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_FMT | LVCF_SUBITEM;
 			data.fmt = LVCFMT_LEFT;
 			for (size_t i = 0; i < m_columns.size(); i++) 
 			{
@@ -368,7 +371,10 @@ LRESULT UIEListViewPanel::on_message(HWND wnd, UINT msg, WPARAM wp, LPARAM lp)
 				MapDialogRect(wnd, &rect);
 				data.cx = rect.right;
 				data.pszText = (TCHAR *)m_columns.getString(i);
-				uSendMessage(m_hwnd_list, LVM_INSERTCOLUMN, i, (LPARAM)&data);
+				data.iSubItem = i;
+				//uSendMessage(m_hwnd_list, LVM_INSERTCOLUMN, i, (LPARAM)&data);
+				int test = ListView_InsertColumn(m_hwnd_list, i, &data);
+				bool bla = true;
 			}
 
 			// ------------ Create columns menu
@@ -378,7 +384,8 @@ LRESULT UIEListViewPanel::on_message(HWND wnd, UINT msg, WPARAM wp, LPARAM lp)
 			for (size_t i = 0; i < m_columns.maxsize(); i++)
 				AppendMenu(m_column_menu, MF_STRING, 2+i, m_columns.getDefaultString(i));
 
-			::SendMessage(m_hwnd_list, LVM_SETITEMCOUNT, f_getcount(), LVSICF_NOSCROLL);
+			//::SendMessage(m_hwnd_list, LVM_SETITEMCOUNT, f_getcount(), LVSICF_NOSCROLL);
+			ListView_SetItemCount(m_hwnd_list, f_getcount());
 		}
 	} break;
 
@@ -454,9 +461,13 @@ LRESULT UIEListViewPanel::on_list(HWND wnd, UINT msg, WPARAM wp, LPARAM lp)
 			{
 				lpdi->item.iImage = 0;
 			}
-		} return 0;
+			return 0;
+		}
 
 		case LVN_ODCACHEHINT:
+		{
+			bool bla = true;
+		}
 			return 0;
 		case LVN_ODFINDITEM:
 			return 0;

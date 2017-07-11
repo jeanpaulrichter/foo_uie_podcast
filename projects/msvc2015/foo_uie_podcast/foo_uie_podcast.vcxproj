@@ -201,7 +201,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='MD Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>$(SolutionDir)..\..\build\$(ProjectName)\$(PlatformShortName)\$(Configuration)\</OutDir>
+    <OutDir>..\..\..\..\..\..\..\AppData\Roaming\foobar2000\user-components\foo_uie_podcast</OutDir>
     <IntDir>$(SolutionDir)..\..\build\$(ProjectName)\$(PlatformShortName)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='MD Debug|x64'">

@@ -559,7 +559,9 @@ void RSS::Database::AddFeed(const char* url)
 		return;
 
 	thread_addfeed.join();
-	thread_addfeed = boost::thread(&RSS::Database::doAddFeed, this, std::string(url));
+	new_feed_urls.clear();
+	new_feed_urls.push_back(url);
+	thread_addfeed = boost::thread(&RSS::Database::doAddFeeds, this);
 }
 
 // -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -967,6 +969,48 @@ int RSS::Database::SetOptions(const RSS::Options& o)
 	return flags;
 }
 
+void RSS::Database::ImportOPML(const std::string path)
+{
+	tinyxml2::XMLDocument	doc;
+	tinyxml2::XMLError		err;
+	tinyxml2::XMLElement*	xml_opml;
+	tinyxml2::XMLElement*	xml_head;
+	tinyxml2::XMLElement*	xml_body;
+	tinyxml2::XMLElement*	xml_outline;
+
+	if (!sql_isconnected())
+		return;
+
+	thread_addfeed.join();
+
+	if(doc.LoadFile(path.c_str()) != tinyxml2::XML_SUCCESS)
+		throw Exc("opml-import: failed to read file");
+	if ((xml_opml = doc.FirstChildElement("opml")) == NULL)
+		throw Exc("opml-import: not a valid opml file");
+	if ((xml_head = xml_opml->FirstChildElement("head")) != NULL)
+	{
+
+	}
+	xml_body = (xml_head != NULL) ? xml_body = xml_head->NextSiblingElement("body") : xml_opml->FirstChildElement("body");
+	if(xml_body == NULL)
+		throw Exc("opml-import: not a valid opml file");
+
+	new_feed_urls.clear();
+	parseOPML(xml_body);
+
+	if (new_feed_urls.size() > 0)
+	{		
+		thread_addfeed = boost::thread(&RSS::Database::doAddFeeds, this);
+	}
+}
+
+// -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+void RSS::Database::ExportOPML(const std::string path)
+{
+
+}
+
 // -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 const TCHAR* RSS::Database::GetFeedString(size_t i, size_t col)
@@ -1207,7 +1251,7 @@ RSS::Signals::Conn RSS::Database::registerHighlightFeed(const RSS::Signals::IntS
 
 // -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-void RSS::Database::doAddFeed(std::string url)
+void RSS::Database::doAddFeeds()
 {
 	// ---------------- Lock
 	boost::unique_lock<boost::mutex> lock(update_mutex, boost::try_to_lock);
@@ -1216,88 +1260,96 @@ void RSS::Database::doAddFeed(std::string url)
 		return;
 	}
 
-	try {
-		int							feed_id;
-		std::string					feed_strings[unsigned(SQL_Feed_s::COUNT)];
-		std::ostringstream			buffer;
-		RSS::Net::HttpHeader		s_header;
-		char						msg[60];
-		tinyxml2::XMLDocument		doc;
-		tinyxml2::XMLElement*		xml_el;
-		tinyxml2::XMLError			xml_err;
-
-		// ---------------- Check if feed already exists:
-		feed_strings[unsigned(SQL_Feed_s::url)].assign(url);
-		int query_ret = 0;
-		sql_query(SQL_Query::count_feeds_url, &feed_strings[unsigned(SQL_Feed_s::url)], 1, NULL, 0, &query_ret);
-		if (query_ret > 0)
-			throw Exc("feed already in database");
-
-		// ---------------- Get feed-data:		
-		getFeedData(url.c_str(), &buffer, &s_header);
-
-		if (s_header.enc == RSS::Net::HttpHeader::Encoding::gzip
-			|| s_header.enc == RSS::Net::HttpHeader::Encoding::bzip2) {
-			std::stringstream out;
-			boost::iostreams::filtering_streambuf<boost::iostreams::input> in;
-			if (s_header.enc == RSS::Net::HttpHeader::Encoding::gzip)
-				in.push(boost::iostreams::gzip_decompressor());
-			else
-				in.push(boost::iostreams::bzip2_decompressor());
-			const std::string& tmp1 = buffer.str();
-			in.push(boost::iostreams::array_source(tmp1.data(), tmp1.size()));
-			boost::iostreams::copy(in, out);
-			const std::string& tmp2 = out.str();
-			xml_err = doc.Parse(tmp2.c_str(), tmp2.size());
-		}
-		else {
-			const std::string& tmp = buffer.str();
-			xml_err = doc.Parse(tmp.c_str(), tmp.size());
-		}
-
-		if (xml_err != tinyxml2::XML_NO_ERROR)
-			throw Exc("invalid rss-feed: failed to parse xml");
-		if ((xml_el = doc.FirstChildElement("rss")) == NULL)
-			throw Exc("invalid rss-feed: <rss> not found");
-		if ((xml_el = xml_el->FirstChildElement("channel")) == NULL)
-			throw Exc("invalid rss-feed: <channel> not found");
-
-		feed_strings[(unsigned)SQL_Feed_s::last_checked] = s_header.date;
-		feed_strings[(unsigned)SQL_Feed_s::last_published] = s_header.last_modified;
-
-		// ---------------- Get feed-strings
-		parseFeed(xml_el, feed_strings);
-
-		// ---------------- Update database
-		sql_query(SQL_Query::insert_feed, feed_strings, (size_t)SQL_Feed_s::COUNT, NULL, 0, &feed_id);
-		size_t item_count = updateItems(feed_id, xml_el);
-
-		// ---------------- Update list
+	try
+	{
+		for (size_t cur_url = 0; cur_url < new_feed_urls.size(); cur_url++)
 		{
-			boost::lock_guard<boost::mutex> lock(list.feeds_mutex);
-			RSS::UI::Feed	feed_ui;
-			feed_ui.id = feed_id;
-			feed_ui.retag = false;
-			getFeedUIStrings(feed_strings, feed_ui.strings, item_count);
-			list.feeds.push_back(feed_ui);
-			list.feeds.sort(FeedCompare(list.feeds_order_column, list.feeds_order_up));
-			list.feedsVector.clear();
-			list.feedsVector.reserve(list.feeds.size());
-			for (RSS::UI::FeedList::iterator it = list.feeds.begin(); it != list.feeds.end(); ++it)
-				list.feedsVector.push_back(it);
-			func.feed_list_update(list.feeds.size());
-		}
+			try
+			{
+				int							feed_id;
+				std::string					feed_strings[unsigned(SQL_Feed_s::COUNT)];
+				std::ostringstream			buffer;
+				RSS::Net::HttpHeader		s_header;
+				char						msg[60];
+				tinyxml2::XMLDocument		doc;
+				tinyxml2::XMLElement*		xml_el;
+				tinyxml2::XMLError			xml_err;
 
-		// ---------------- Log		
-		_snprintf_s(msg, _TRUNCATE, "added feed '%s'", feed_strings[(unsigned)SQL_Feed_s::title].c_str());
-		func.log(msg);
-	}
-	catch (Exc& exc) {
-		func.log(exc.what());
+				// ---------------- Check if feed already exists:
+				feed_strings[unsigned(SQL_Feed_s::url)].assign(new_feed_urls[cur_url]);
+				int query_ret = 0;
+				sql_query(SQL_Query::count_feeds_url, &feed_strings[unsigned(SQL_Feed_s::url)], 1, NULL, 0, &query_ret);
+				if (query_ret > 0)
+					throw Exc("feed already in database");
+
+				// ---------------- Get feed-data:		
+				getFeedData(new_feed_urls[cur_url].c_str(), &buffer, &s_header);
+
+				if (s_header.enc == RSS::Net::HttpHeader::Encoding::gzip
+					|| s_header.enc == RSS::Net::HttpHeader::Encoding::bzip2) {
+					std::stringstream out;
+					boost::iostreams::filtering_streambuf<boost::iostreams::input> in;
+					if (s_header.enc == RSS::Net::HttpHeader::Encoding::gzip)
+						in.push(boost::iostreams::gzip_decompressor());
+					else
+						in.push(boost::iostreams::bzip2_decompressor());
+					const std::string& tmp1 = buffer.str();
+					in.push(boost::iostreams::array_source(tmp1.data(), tmp1.size()));
+					boost::iostreams::copy(in, out);
+					const std::string& tmp2 = out.str();
+					xml_err = doc.Parse(tmp2.c_str(), tmp2.size());
+				}
+				else {
+					const std::string& tmp = buffer.str();
+					xml_err = doc.Parse(tmp.c_str(), tmp.size());
+				}
+
+				if (xml_err != tinyxml2::XML_SUCCESS)
+					throw Exc("invalid rss-feed: failed to parse xml");
+				if ((xml_el = doc.FirstChildElement("rss")) == NULL)
+					throw Exc("invalid rss-feed: <rss> not found");
+				if ((xml_el = xml_el->FirstChildElement("channel")) == NULL)
+					throw Exc("invalid rss-feed: <channel> not found");
+
+				feed_strings[(unsigned)SQL_Feed_s::last_checked] = s_header.date;
+				feed_strings[(unsigned)SQL_Feed_s::last_published] = s_header.last_modified;
+
+				// ---------------- Get feed-strings
+				parseFeed(xml_el, feed_strings);
+
+				// ---------------- Update database
+				sql_query(SQL_Query::insert_feed, feed_strings, (size_t)SQL_Feed_s::COUNT, NULL, 0, &feed_id);
+				size_t item_count = updateItems(feed_id, xml_el);
+
+				// ---------------- Update list
+				{
+					boost::lock_guard<boost::mutex> lock(list.feeds_mutex);
+					RSS::UI::Feed	feed_ui;
+					feed_ui.id = feed_id;
+					feed_ui.retag = false;
+					getFeedUIStrings(feed_strings, feed_ui.strings, item_count);
+					list.feeds.push_back(feed_ui);
+					list.feeds.sort(FeedCompare(list.feeds_order_column, list.feeds_order_up));
+					list.feedsVector.clear();
+					list.feedsVector.reserve(list.feeds.size());
+					for (RSS::UI::FeedList::iterator it = list.feeds.begin(); it != list.feeds.end(); ++it)
+						list.feedsVector.push_back(it);
+					func.feed_list_update(list.feeds.size());
+				}
+
+				// ---------------- Log		
+				_snprintf_s(msg, _TRUNCATE, "added feed '%s'", feed_strings[(unsigned)SQL_Feed_s::title].c_str());
+				func.log(msg);
+			}
+			catch (Exc& exc) {
+				func.log(exc.what());
+			}
+		}
 	}
 	catch (boost::thread_interrupted&) {
 		// thread interrupted: exit
 	}
+	new_feed_urls.clear();
 }
 
 // -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1413,8 +1465,8 @@ void RSS::Database::updateFeeds(bool rebuild)
 						const std::string& tmp = buffer.str();
 						xml_err = doc.Parse(tmp.c_str(), tmp.size());
 					}
-
-					if (xml_err != tinyxml2::XML_NO_ERROR)
+					
+					if (xml_err != tinyxml2::XML_SUCCESS)
 						throw Exc("invalid rss-feed: failed to parse xml");
 					if ((xml_el = doc.FirstChildElement("rss")) == NULL)
 						throw Exc("invalid rss-feed: <rss> not found");
@@ -2281,6 +2333,30 @@ bool RSS::Database::parseItem(tinyxml2::XMLElement* xml_item, std::string* str, 
 		return false; // error message?
 	else
 		return true;
+}
+
+// -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+void RSS::Database::parseOPML(tinyxml2::XMLElement* xml_body)
+{
+	tinyxml2::XMLElement* xml_outline = xml_body->FirstChildElement("outline");
+
+	while (xml_outline != NULL)
+	{
+		const char* at_type = xml_outline->Attribute("type");
+		if (at_type != NULL && strcmp(at_type, "rss") == 0) {
+			const char* at_xmlUrl = xml_outline->Attribute("xmlUrl");
+			if (at_xmlUrl != NULL)
+			{
+				if (strlen(at_xmlUrl) < 300)
+				{
+					new_feed_urls.push_back(at_xmlUrl);
+				}
+			}
+		}
+		parseOPML(xml_outline);
+		xml_outline = xml_outline->NextSiblingElement();
+	}
 }
 
 // -------------------------------------------------------------------------------------------------------------------------------------------------------------------------

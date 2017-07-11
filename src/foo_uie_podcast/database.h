@@ -304,6 +304,8 @@ namespace RSS
 		void ResumeDownload(int item_id);
 		void CancelDownload(int item_id);
 		int SetOptions(const RSS::Options& o);
+		void ImportOPML(const std::string path);
+		void ExportOPML(const std::string path);
 
 		// ---------------------- ui
 		const tchar*	GetFeedString(size_t i, size_t col);
@@ -327,7 +329,7 @@ namespace RSS
 
 	private:
 		// ---------------------- main
-		void doAddFeed(std::string url);
+		void doAddFeeds();
 		void autoUpdate();
 		void updateFeeds(bool rebuild);
 		size_t updateItems(int feed_id, tinyxml2::XMLElement* xml_channel);
@@ -344,6 +346,7 @@ namespace RSS
 		// ---------------------- help
 		void parseFeed(tinyxml2::XMLElement* xml_channel, std::string* str, bool onlydate = false);
 		bool parseItem(tinyxml2::XMLElement* xml_item, std::string* str, int* ints);
+		void parseOPML(tinyxml2::XMLElement* xml_body);
 		void getFeedUIStrings(const std::string* s, UI::FeedStrings& s_ui, size_t item_count, bool onlydate = false);
 		void getDownloadUIStrings(const std::string* s, UI::DownloadStrings& s_ui);
 		void getUIStatusString(Net::Status status, string& str, bool offset = true);
@@ -375,6 +378,8 @@ namespace RSS
 		RSS::S::List						list;
 		RSS::S::Options						options;
 		RSS::Signals::List					func;
+
+		std::vector<std::string>			new_feed_urls;
 	};
 
 	// -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
